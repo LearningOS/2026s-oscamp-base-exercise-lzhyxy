@@ -40,7 +40,11 @@ impl FlagChannel {
     pub fn produce(&self, value: u32) {
         // TODO: Store data (choose appropriate Ordering)
         // TODO: Set ready = true (choose appropriate Ordering so data writes complete before this)
-        todo!()
+        // Store the data first (no synchronization needed yet)
+        self.data.store(value, Ordering::Relaxed);
+
+        // Publish the data with a Release store
+        self.ready.store(true, Ordering::Release);
     }
 
     /// Consumer: spin-wait for ready flag, then read data.
@@ -51,7 +55,13 @@ impl FlagChannel {
     pub fn consume(&self) -> u32 {
         // TODO: Spin-wait for ready to become true (choose appropriate Ordering)
         // TODO: Read data (choose appropriate Ordering)
-        todo!()
+            // Spin until the producer sets the flag
+        while !self.ready.load(Ordering::Acquire) {
+            std::hint::spin_loop();
+        }
+
+        // After acquiring, it is safe to read the data
+        self.data.load(Ordering::Relaxed)
     }
 
     /// Reset channel state
@@ -83,13 +93,34 @@ impl OnceCell {
     pub fn init(&self, val: u32) -> bool {
         // TODO: Use compare_exchange to ensure initialization only once
         // Store value on success
-        todo!()
+      // Write the value first
+           // 先尝试 CAS，确保只有一个线程成功
+        if self.initialized
+            .compare_exchange(
+                false,
+                true,
+                Ordering::AcqRel,
+                Ordering::Acquire,
+            )
+            .is_ok()
+        {
+            // 只有成功的线程才写 value
+            self.value.store(val, Ordering::Release);
+            true
+        } else {
+            false
+        }
     }
 
     /// Get value. Returns Some if initialized, otherwise None.
     pub fn get(&self) -> Option<u32> {
         // TODO: Check initialized flag, then read value
-        todo!()
+        // Acquire ensures visibility of the value written before initialization
+        if self.initialized.load(Ordering::Acquire) {
+            Some(self.value.load(Ordering::Relaxed))
+        } else {
+            None
+        }
     }
 }
 

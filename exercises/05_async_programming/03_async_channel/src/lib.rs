@@ -19,7 +19,33 @@ pub async fn producer_consumer(items: Vec<String>) -> Vec<String> {
     // TODO: Spawn producer task: iterate through items, send each one
     // TODO: Spawn consumer task: loop recv until channel closes, collect results
     // TODO: Wait for consumer to complete and return results
-    todo!()
+ let (tx, mut rx) = mpsc::channel(items.len().max(1));
+
+    // producer
+    let producer = tokio::spawn({
+        let tx = tx.clone();
+        async move {
+            for item in items {
+                tx.send(item).await.expect("send failed");
+            }
+            // tx drop here when task ends
+        }
+    });
+
+    // consumer
+    let consumer = tokio::spawn(async move {
+        let mut result = Vec::new();
+
+        while let Some(value) = rx.recv().await {
+            result.push(value);
+        }
+
+        result
+    });
+
+    // wait both
+    producer.await.expect("producer panic");
+    consumer.await.expect("consumer panic")
 }
 
 /// Fan‑in pattern: multiple producers, one consumer.
@@ -31,7 +57,41 @@ pub async fn fan_in(n_producers: usize) -> Vec<String> {
     //       Each sends format!("producer {id}: message")
     // TODO: Drop the original sender (important! otherwise channel won't close)
     // TODO: Consumer loops receiving, collects and sorts
-    todo!()
+    let (tx, mut rx) = mpsc::channel(n_producers.max(1));
+
+    // producers
+    let mut handles = Vec::new();
+
+    for id in 0..n_producers {
+        let tx = tx.clone();
+        let handle = tokio::spawn(async move {
+            let msg = format!("producer {}: message", id);
+            tx.send(msg).await.expect("send failed");
+        });
+        handles.push(handle);
+    }
+
+    // drop original sender so channel can close
+    drop(tx);
+
+    // wait producers
+    for h in handles {
+        h.await.expect("producer panic");
+    }
+
+    // consumer
+    let consumer = tokio::spawn(async move {
+        let mut result = Vec::new();
+
+        while let Some(msg) = rx.recv().await {
+            result.push(msg);
+        }
+
+        result.sort();
+        result
+    });
+
+    consumer.await.expect("consumer panic")
 }
 
 #[cfg(test)]
