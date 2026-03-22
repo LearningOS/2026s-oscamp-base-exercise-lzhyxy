@@ -137,7 +137,28 @@ impl Scheduler {
     ///    `sp` must be 16-byte aligned (e.g. `(stack_top - 16) & !15` to leave headroom).
     /// 3. Push a `GreenThread` with this context, state `Ready`, and `entry` stored for the wrapper to call.
     pub fn spawn(&mut self, entry: extern "C" fn()) {
-        todo!("alloc stack, init ctx with ra=thread_wrapper and aligned sp, push GreenThread(Ready, entry)")
+        //todo!("alloc stack, init ctx with ra=thread_wrapper and aligned sp, push GreenThread(Ready, entry)")
+         // 分配栈空间
+    let stack = vec![0u8; STACK_SIZE];
+    let stack_top = stack.as_ptr() as usize + STACK_SIZE;
+
+    // 初始化上下文
+    let mut ctx = TaskContext::default();
+    // ra 指向 thread_wrapper，这样第一次切换到该线程时会进入 wrapper
+    ctx.ra = thread_wrapper as usize as u64;
+
+    // 栈指针必须 16 字节对齐，且为函数调用预留空间（通常减去 16 或直接对齐）
+    // 使用 (stack_top - 16) & !15 确保对齐且留有安全间隙
+    let sp_aligned = (stack_top - 16) & !0xF;
+    ctx.sp = sp_aligned as u64;
+
+    // 创建 GreenThread 并压入
+    self.threads.push(GreenThread {
+        ctx,
+        state: ThreadState::Ready,
+        _stack: Some(stack),
+        entry: Some(entry),
+    });
     }
 
     /// Run the scheduler until all threads (except the main one) are `Finished`.
@@ -146,12 +167,66 @@ impl Scheduler {
     /// 2. Loop: if all threads in `threads[1..]` are `Finished`, break; otherwise call `schedule_next()` (which may switch away and later return).
     /// 3. Clear `SCHEDULER` when done.
     pub fn run(&mut self) {
-        todo!("set SCHEDULER to self, loop until threads[1..] all Finished, call schedule_next, then clear SCHEDULER")
+        //todo!("set SCHEDULER to self, loop until threads[1..] all Finished, call schedule_next, then clear SCHEDULER")
+         // 设置全局调度器指针
+    unsafe {
+        SCHEDULER = self as *mut Scheduler;
+    }
+
+    // 只要还有子线程（索引 1..）未完成，就继续调度
+    while self.threads[1..].iter().any(|t| t.state != ThreadState::Finished) {
+        self.schedule_next();
+    }
+
+    // 清理全局指针
+    unsafe {
+        SCHEDULER = std::ptr::null_mut();
+    } 
     }
 
     /// Find the next ready thread (starting from `current + 1` round-robin), mark current as `Ready` (if not `Finished`), mark next as `Running`, set `CURRENT_THREAD_ENTRY` if the next thread has an entry, then switch to it.
     fn schedule_next(&mut self) {
-        todo!("round-robin find next Ready, set current Ready (if not Finished), next Running, CURRENT_THREAD_ENTRY, then switch_context")
+        //todo!("round-robin find next Ready, set current Ready (if not Finished), next Running, CURRENT_THREAD_ENTRY, then switch_context")
+    let current_idx = self.current;
+
+    let current_state = self.threads[current_idx].state;
+
+    // 如果当前线程未结束，将其状态设为 Ready
+    if current_state != ThreadState::Finished {
+        self.threads[current_idx].state = ThreadState::Ready;
+    }
+
+    // 找到下一个 Ready 线程（round-robin）
+    let next_idx = (current_idx + 1..self.threads.len())
+        .chain(0..current_idx)
+        .find(|&i| self.threads[i].state == ThreadState::Ready)
+        .expect("no ready thread");
+
+    // 更新 current 和状态
+    self.current = next_idx;
+    self.threads[next_idx].state = ThreadState::Running;
+
+    // 设置线程入口（只在首次运行时使用）
+    if let Some(entry) = self.threads[next_idx].entry.take() {
+        unsafe {
+            CURRENT_THREAD_ENTRY = Some(entry);
+        }
+    }
+
+    // ✅ 关键修复：使用 split_at_mut 避免借用冲突
+    let (left, right) =
+        self.threads.split_at_mut(std::cmp::max(current_idx, next_idx));
+
+    let (old_ctx, new_ctx) = if current_idx < next_idx {
+        (&mut left[current_idx].ctx, &mut right[0].ctx)
+    } else {
+        (&mut right[0].ctx, &mut left[next_idx].ctx)
+    };
+
+    // 执行上下文切换
+    unsafe {
+        switch_context(old_ctx, new_ctx);
+    }
     }
 }
 

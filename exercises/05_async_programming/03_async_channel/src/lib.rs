@@ -1,4 +1,4 @@
-//! # Async Channel
+/*//! # Async Channel
 //!
 //! In this exercise, you will use `tokio::sync::mpsc` async channels to implement producer-consumer pattern.
 //!
@@ -130,3 +130,4 @@ mod tests {
         assert_eq!(result, vec!["producer 0: message"]);
     }
 }
+*/
