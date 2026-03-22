@@ -1,4 +1,4 @@
-/*//! # Stackful Coroutine and Context Switch (riscv64)
+//! # Stackful Coroutine and Context Switch (riscv64)
 //!
 //! In this exercise, you implement the minimal context switch using inline assembly,
 //! which is the core mechanism of OS thread scheduling. This crate is **riscv64 only**;
@@ -205,4 +205,3 @@ mod tests {
         assert_eq!(COUNTER.load(Ordering::SeqCst), 99);
     }
 }
-*/
