@@ -123,9 +123,12 @@ pub unsafe fn switch_context(_old: &mut TaskContext, _new: &TaskContext) {
         "ld s10, 96(a1)",
         "ld s11, 104(a1)",
 
+            // 清零 a0、a1
+        "mv a0, zero",
+        "mv a1, zero",
         // 返回到新上下文（跳转到 ra）
         "ret",
-        options(noreturn)
+   
     );
 }
 
@@ -136,14 +139,9 @@ const STACK_SIZE: usize = 1024 * 64;
 pub fn alloc_stack() -> (Vec<u8>, usize) {
    
    // todo!("allocate stack buffer, return (buffer, stack_top) with stack_top 16-byte aligned")
-      let buf = vec![0u8; STACK_SIZE];
-    let base = buf.as_ptr() as usize;
-    let top = base + STACK_SIZE;
-
-    // 16-byte align
-    let aligned_top = top & !0xF;
-
-    (buf, aligned_top)
+    let buf = vec![0u8; STACK_SIZE];
+    let top = buf.as_ptr() as usize + STACK_SIZE;
+    (buf, top)
 }
 
 #[cfg(test)]
