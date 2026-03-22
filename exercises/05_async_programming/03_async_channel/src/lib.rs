@@ -1,4 +1,4 @@
-/*//! # Async Channel
+//! # Async Channel
 //!
 //! In this exercise, you will use `tokio::sync::mpsc` async channels to implement producer-consumer pattern.
 //!
@@ -22,15 +22,11 @@ pub async fn producer_consumer(items: Vec<String>) -> Vec<String> {
  let (tx, mut rx) = mpsc::channel(items.len().max(1));
 
     // producer
-    let producer = tokio::spawn({
-        let tx = tx.clone();
-        async move {
-            for item in items {
-                tx.send(item).await.expect("send failed");
-            }
-            // tx drop here when task ends
-        }
-    });
+   let producer = tokio::spawn(async move {
+    for item in items {
+        tx.send(item).await.expect("send failed");
+    }
+});
 
     // consumer
     let consumer = tokio::spawn(async move {
@@ -130,4 +126,3 @@ mod tests {
         assert_eq!(result, vec!["producer 0: message"]);
     }
 }
-*/
