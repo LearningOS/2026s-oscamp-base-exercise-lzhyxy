@@ -123,10 +123,9 @@ pub unsafe fn switch_context(_old: &mut TaskContext, _new: &TaskContext) {
         "ld s10, 96(a1)",
         "ld s11, 104(a1)",
 
-        "li a0, 0",
-        "li a1, 0",
         // 返回到新上下文（跳转到 ra）
         "ret",
+        options(noreturn)
     );
 }
 
